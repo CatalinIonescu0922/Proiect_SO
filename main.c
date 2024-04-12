@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 void path_stat(const char *path)
 {
@@ -29,22 +30,22 @@ void path_stat(const char *path)
     }
     printf("Time of Last Status Change - %ld\n", st.st_ctime);
 
-    // if (S_ISDIR(st.st_mode))
-    // {
-    //     fprintf(f,"%s %s\n","DIR - ", path);
-    //     fprintf(f,"%ld",st.st_ctime);
-    // }
-    // else
-    // {
-    //     fprintf(f,"%s %s\n","FILE - ", path);
-    //     fprintf(f,"%ld",st.st_ctime);
-    // }
+    if (S_ISDIR(st.st_mode))
+    {
+        fprintf(f,"%s %s\n","DIR - ", path);
+        fprintf(f,"%ld",st.st_ctime);
+    }
+    else
+    {
+        fprintf(f,"%s %s\n","FILE - ", path);
+        fprintf(f,"%ld",st.st_ctime);
+    }
 
-    // printf("Size - %ld\n", st.st_size);
-    // printf("Time of Last Modification - %ld\n", st.st_mtime);
-    // printf("Time of Last Status Change - %ld\n", st.st_ctime);
+    printf("Size - %ld\n", st.st_size);
+    printf("Time of Last Modification - %ld\n", st.st_mtime);
+    printf("Time of Last Status Change - %ld\n", st.st_ctime);
     
-    // printf("\n");
+    printf("\n");
 }
 
 void parcurgere(const char *path)
@@ -75,8 +76,24 @@ void parcurgere(const char *path)
 }
 
 int main(int argc, char *argv[])
-{
-    parcurgere(argv[1]);
 
+{
+    int status ;
+    pid_t pid[argc];
+    for(int i=1;i<argc;i++){
+        pid[i]=fork();
+        if(pid[i]==0){
+            // child process
+            parcurgere(argv[i]);
+            exit(i);
+        } 
+    }
+
+    for(int i=1;i<argc;i++){
+        wait(&status);
+    }
+
+
+    
     exit(EXIT_SUCCESS);
 }
