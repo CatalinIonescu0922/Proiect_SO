@@ -74,6 +74,19 @@ void parcurgere(const char *path)
 
     path_stat(path);
 }
+int apelare_script(char *script_name, char *file_name) {
+    // verific daca fisierul meu nu are nici un drept doar atunci apelez execlp
+    // char *argv[] = {"/bin/bash", script_name, NULL};
+    // verfific daca un file sau un folder s o schimbar folosind o functie dupa iau mai multu parametri si apeleaza pe fiecare in copilul lui separat folosind fork
+    // ultima cerinta fac un pipe intre procesul parinte functia de verificare modificare si executia shell scrip ului 
+    // fac pipe pentru a putea comunica intre cele doua procese
+    int read_verificare = access(file_name,R_OK);
+    int write_verificare= access(file_name,W_OK);
+    int exec_verificare = access(file_name,X_OK);
+    if(read_verificare==-1 && write_verificare==-1 && exec_verificare==-1){
+        system("./script.sh");
+    }
+}
 
 int main(int argc, char *argv[])
 
@@ -81,9 +94,11 @@ int main(int argc, char *argv[])
     int status ;
     pid_t pid[argc];
     for(int i=1;i<argc;i++){
+        pipe(pid[i]);
         pid[i]=fork();
         if(pid[i]==0){
             // child process
+
             parcurgere(argv[i]);
             exit(i);
         } 
@@ -96,4 +111,5 @@ int main(int argc, char *argv[])
 
     
     exit(EXIT_SUCCESS);
+    return 0;
 }
