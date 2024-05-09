@@ -19,6 +19,68 @@ typedef struct Date_fisiere
     char nume_fisier[100];
 } Date_fisiere;
 
+void moveFile(const char* source_path, const char* destination_path) {
+    char *last_slash = strrchr(source_path, '/');
+    char *filename = last_slash + 1;
+    char new_path[102];
+    strcpy(new_path,destination_path);
+    strcat(new_path,"/");
+    strcat(new_path,filename);
+    printf("%s \n",new_path);
+    if (rename(source_path,new_path) == 0) {
+        printf("File moved successfully.\n"); 
+    } else {
+        perror("Error moving file");
+        exit(-1);
+    }
+}
+
+void mutare_daca_gasesc_virusi(const char *script_path,const char *file_path,const char* destination_path){
+      int fd[2]; // fd[0] citire fd[1] scriere
+      pid_t pid;
+      int status;
+      char returnare_script[3];
+      if(pipe(fd)<0){
+         printf("eroare la creare pipe");
+         exit(-1);
+      }
+      if((pid=fork())<0){
+          printf("eroare la fork");
+          exit(-1);
+      }
+      if(pid==0){
+        // child proces 
+        close(fd[0]); //vreau sa inchid citirea deoarece in procesul copil eu vreau sa scriu in pipe
+        dup2(fd[1],1);
+          if(execlp("./script.sh","./script.sh",file_path,NULL) == -1)
+            {
+                perror("\nOops, eroare la script\n");
+                exit(-12);
+            } 
+        // exit(-1);
+      } else{
+          pid_t wpid;
+          close(fd[1]); // inchidem capul de scriere;
+          wpid=wait(&status);
+           if (WIFEXITED(status)) 
+            {
+                printf("\nPid-ul procesului pentru ultima modificare %d a ieșit cu codul: %d\n", wpid, WEXITSTATUS(status));
+            } 
+            else 
+            {
+                fprintf(stderr, "Eroare la așteptarea procesului\n");
+            }
+            if(read(fd[0],returnare_script,3*sizeof(char))!=3){
+                printf("nu am citit ce trbuie");
+                exit(-1);
+            }
+            close(fd[0]); // deja am citit ce am vrut 
+            if(strcmp(returnare_script,"rau")){
+                moveFile(file_path,destination_path);
+            } 
+      }
+
+}
 void update_time_fisier(Date_fisiere *vector,int posizitie,int fd,time_t timp_nou){
    int offset_modificare=0;
    off_t offset;
@@ -115,9 +177,8 @@ Date_fisiere *returnare_fisiere(Date_fisiere *vector)
   return vector;
 }
 
-void path_stat(const char *path,int fd)
+void verificare_modificari(const char *path,int fd)
 {
-    // printf("am apelat path stat \n");
     struct stat st;
     struct stat st_verificare_fisier;
     Date_fisiere *toate_fisiere = malloc(100 * sizeof(Date_fisiere));
@@ -156,8 +217,18 @@ void path_stat(const char *path,int fd)
     }    
     
 }
+int verificare_permisiuni(const char *file_name) {
+    int read_verificare = access(file_name,R_OK);
+    int write_verificare= access(file_name,W_OK);
+    int exec_verificare = access(file_name,X_OK);
+    if(read_verificare==-1 && write_verificare==-1 && exec_verificare==-1){
+       return 1;  
+    } else{
+        return 0;
+    }
+}
 
-void parcurgere(const char *path,int fd)
+void parcurgere(const char *path,int fd,const char *script_path, const char *folder_destinatie)
 {
     struct stat st;
     stat(path, &st);
@@ -174,43 +245,31 @@ void parcurgere(const char *path,int fd)
 
             if (strcmp(db->d_name, ".") && strcmp(db->d_name, ".."))
             {
-                parcurgere(newPath,fd);
+                parcurgere(newPath,fd,script_path,folder_destinatie);
             }
         }
 
         closedir(director);
     }
 
-    path_stat(path,fd);
-}
-int apelare_script(char *script_name, char *file_name) {
-    // verific daca fisierul meu nu are nici un drept doar atunci apelez execlp
-    // char *argv[] = {"/bin/bash", script_name, NULL};
-    // verfific daca un file sau un folder s o schimbar folosind o functie dupa iau mai multu parametri si apeleaza pe fiecare in copilul lui separat folosind fork
-    // ultima cerinta fac un pipe intre procesul parinte functia de verificare modificare si executia shell scrip ului 
-    // fac pipe pentru a putea comunica intre cele doua procese
-    int read_verificare = access(file_name,R_OK);
-    int write_verificare= access(file_name,W_OK);
-    int exec_verificare = access(file_name,X_OK);
-    if(read_verificare==-1 && write_verificare==-1 && exec_verificare==-1){
-        system("./script.sh");
+    verificare_modificari(path,fd);
+    if(strcmp(path,"dir2/file2.txt")==0){
+        // printf("am apelat ieee");
+        mutare_daca_gasesc_virusi(script_path,path,folder_destinatie);
     }
-    return 1;
 }
 
 int main(int argc, char *argv[])
 
 {
-        // Date_fisiere *toate_fisiere = malloc(100 * sizeof(Date_fisiere));
-        // toate_fisiere=returnare_fisiere(toate_fisiere);
-        // for(int i=0;i<100;i++){
-        //     if(toate_fisiere[i].unic_id==NULL){
-        //         break;
-        //     } 
-        //     printf("%s\n",toate_fisiere[i].nume_fisier);
-        // }
-
-
+    if(argc <= 3){
+        printf("nu ai adugat toate argumentele mai incearca odata ");
+        exit(-1);
+    }
+    char script_path[20];
+    strcpy(script_path,argv[1]);
+    char director_mutare[25];
+    strcpy(director_mutare,argv[2]);
     int fd;
     // int fd2;
     fd=open("outn.txt",O_RDWR | O_CREAT);
@@ -224,18 +283,18 @@ int main(int argc, char *argv[])
     // } 
     int status ;
     pid_t pid[argc], wpid;
-    for(int i=1;i<argc;i++){
+    for(int i=3;i<argc;i++){
         // pipe(pid[i]);
         pid[i]=fork();
         if(pid[i]==0){
             // child process
 
-            parcurgere(argv[i],fd);
-            exit(-1);
+            parcurgere(argv[i],fd,script_path,director_mutare);
+            exit(0);
         } 
     }
 
-    for(int i=1;i<argc;i++){
+    for(int i=3;i<argc;i++){
        wpid=wait(&status);
        if (WIFEXITED(status)) 
             {
