@@ -1,25 +1,14 @@
-if [ ! -r "$1" ]; then
-  # Dacă nu are permisiuni, acordă permisiuni temporare de citire
+#acord persiune de citire deoare stiu sigur ca nu avem nici o permisiune
   chmod +r "$1"
-  temp_perm=true
-else
-  temp_perm=false
-fi
-
 # Modelul pe care dorim să îl căutăm
-pattern="dada"
+pattern="cauta"
 
 # Verifică dacă modelul este prezent în fișier
 if grep -q "$pattern" "$1"; then
   # Dacă modelul este găsit, returnează 1
-  result="DA"
+  result="rau"
 else
   # Dacă modelul nu este găsit, returnează 0
-  result="NU"
-fi
-
-# Dacă am acordat permisiuni temporare, le revocăm
-if [ "$temp_perm" = true ]; then
-  chmod -r "$1"
+  result="bun"
 fi
 echo $result
